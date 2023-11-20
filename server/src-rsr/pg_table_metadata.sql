@@ -1,3 +1,13 @@
+WITH types AS MATERIALIZED (
+    SELECT
+        "type".oid,
+        "type".typname,
+        "type".typtype,
+        "type".typbasetype,
+        array_type.typname AS array_typname
+    FROM pg_catalog.pg_type "type"
+    LEFT JOIN pg_catalog.pg_type array_type
+      ON array_type.typarray = "type".oid)
 SELECT
   "table".table_schema,
   "table".table_name,
@@ -55,9 +65,9 @@ LEFT JOIN LATERAL
   ( SELECT jsonb_agg(jsonb_build_object(
       'name', "column".attname,
       'position', "column".attnum,
-      'type', json_build_object('name', (CASE WHEN "array_type".typname IS NULL
+      'type', json_build_object('name', (CASE WHEN "type".array_typname IS NULL
                                               THEN coalesce(base_type.typname, "type".typname)
-                                              ELSE "array_type".typname || '[]' END),
+                                              ELSE "type".array_typname || '[]' END),
                                 'type', "type".typtype),
       'is_nullable', NOT "column".attnotnull,
       'description', pg_catalog.col_description("table".oid, "column".attnum),
@@ -101,7 +111,7 @@ LEFT JOIN LATERAL
       AND generatedpolyfill.attnum = "column".attnum
       AND generatedpolyfill.attname = "column".attname
 
-    LEFT JOIN pg_catalog.pg_type "type"
+    LEFT JOIN types "type"
       ON "type".oid = "column".atttypid
     LEFT JOIN pg_catalog.pg_type base_type
       ON "type".typtype = 'd' AND base_type.oid = "type".typbasetype
